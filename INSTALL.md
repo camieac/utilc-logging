@@ -4,7 +4,7 @@
 
 1. Clone the repository to your computer.
 	```
-	git clone https://github.com/camieac/utilc-template.git
+	git clone https://github.com/camieac/utilc-logging.git
 	```
 2. Enter the `utilc-template` directory.
 	```

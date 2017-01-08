@@ -18,7 +18,7 @@
 #include <unistd.h>
 #include <check.h>
 
-#include "utilc-template.h"
+#include "utilc-logging.h"
 
 /************************
 * Test Case Setup and teardown
