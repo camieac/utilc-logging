@@ -80,7 +80,10 @@ struct ucl_s {
 uint32_t ucl_init(ucl_h ucl);
 uint32_t ucl_log(ucl_h ucl, enum ucl_log_level_e log_level, const char *message, ...);
 ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...);
+
+uint32_t ucl_enable_dest(ucl_dest_h dest);
 uint32_t ucl_disable_dest(ucl_dest_h dest);
+
 uint32_t ucl_free(ucl_h ucl);
 //uint32_t ucl_log_error(ucl_h ucl);
 

@@ -20,14 +20,13 @@ int main (int argc, char *argv[]){
 	here we print to stdout and a log file.
 	*/
 	ucl_dest_h dest1 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
-	//ucl_dest_h dest2 = ucl_add_dest(&ucl, UCL_DEST_FILE, "/home/cameron/logs/test.log");
-	//ucl_dest_h dest3 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
+	ucl_dest_h dest2 = ucl_add_dest(&ucl, UCL_DEST_FILE, "/home/cameron/logs/test.log");
+	ucl_dest_h dest3 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
 
 	/*	If destinations require modification after creation,
 		keep track of the pointer returned by ucl_add_dest.
 	*/
-	//ucl_disable_dest(dest3);
-
+	ucl_disable_dest(dest3);
 
 	ucl_log(&ucl, UCL_LL_INFO, "This is some info, this is message %d\n", 1);
 

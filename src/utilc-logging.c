@@ -18,8 +18,9 @@
 
 #include "utilc-logging.h"
 
-#define MSG_TIMESTAMP_BYTES 29
+
 #define NULL_TERMINATOR 1
+#define MSG_TIMESTAMP_BYTES 28
 
 uint32_t uc_template_function(void){
 	return EXIT_SUCCESS;
@@ -88,7 +89,6 @@ static void tv_to_timestamp(char *m, struct timeval *tv){
 	strcat(m, "[");
 	strcat(m, timestamp);
 	strcat(m,"] ");
-	printf("testing: %s\n", m);
 }
 
 static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *message){
@@ -97,14 +97,13 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 	}
 
 	const char* msg_user = message->message;
-	size_t msg_user_size = strlen(msg_user);
+	size_t msg_user_size = vsnprintf(NULL, 0, message->message, message->args);
 
 	const char *msg_log_level;
 	size_t msg_log_level_size = 0U;
 	if(ucl->flags & UCL_FLAGS_LOG_LEVEL){
 		msg_log_level = ucl_log_level_to_string(message->log_level);
 		msg_log_level_size = strlen(msg_log_level);
-		printf("Log Level: %s\n", msg_log_level);
 	}
 
 	char msg_timestamp[MSG_TIMESTAMP_BYTES];
@@ -113,13 +112,17 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 	if(ucl->flags && UCL_FLAGS_TIMESTAMP){
 		tv_to_timestamp(msg_timestamp, &message->tv);
 		msg_timestamp_size = MSG_TIMESTAMP_BYTES;
-		printf("Timestamp: %s\n", msg_timestamp);
 	}
 
 	//Work out the size of c-string we need to print
-	char msg_full[msg_user_size + msg_timestamp_size + msg_log_level_size];
-	memset(msg_full, 0, sizeof(msg_full));
-	printf("Allocated %d\n", msg_user_size + msg_timestamp_size + msg_log_level_size + NULL_TERMINATOR);
+	size_t msg_full_size = msg_user_size + msg_timestamp_size + msg_log_level_size;
+	char msg_full[msg_full_size];
+	memset(msg_full, 0, msg_full_size);
+	printf("User string size: %d bytes\n", msg_user_size);
+	printf("Timestamp size: %d bytes\n", msg_timestamp_size);
+	printf("Log level size: %d bytes\n", msg_log_level_size);
+	printf("Total size: %d bytes\n", msg_full_size);
+	printf("Allocated %d\n", msg_full_size);
 
 	if(ucl->flags && UCL_FLAGS_TIMESTAMP){
 		strcat(msg_full, msg_timestamp);
@@ -131,13 +134,11 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 
 	strcat(msg_full, ": ");
 	strcat(msg_full, msg_user);
-	//	printf(m);
-	printf("Type: %s\n", ucl_dest_type_to_string(dest->type));
+
 	switch(dest->type){
 		case UCL_DEST_FILE:
 			;
 			char * filename = dest->conf.file.filename;
-			printf("filename: %s\n", filename);
 			FILE *log_file = fopen(filename, "a");
 			vfprintf(log_file, msg_full, message->args);
 			fclose(log_file);
@@ -205,6 +206,11 @@ ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...){
 	va_end(args);
 
 	return &ucl->dests[ucl->num_dests - 1];
+}
+
+uint32_t ucl_enable_dest(ucl_dest_h dest){
+	dest->flags &= UCL_FLAGS_DEST_ENABLED;
+	return UCL_OK;
 }
 
 uint32_t ucl_disable_dest(ucl_dest_h dest){
