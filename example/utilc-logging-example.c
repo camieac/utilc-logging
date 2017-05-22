@@ -15,12 +15,13 @@
 int main (int argc, char *argv[]){
 	struct ucl_s ucl;
 	ucl_init(&ucl);
+	uint32_t err;
 
 	/* Add as many destinations as necessary,
 	here we print to stdout and a log file.
 	*/
 	ucl_dest_h dest1 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
-	//ucl_dest_h dest2 = ucl_add_dest(&ucl, UCL_DEST_FILE, "/home/cameron/logs/test.log");
+	ucl_dest_h dest2 = ucl_add_dest(&ucl, UCL_DEST_FILE, "/home/cameron/logs/test.log");
 	//ucl_dest_h dest3 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
 
 	/*	If destinations require modification after creation,
@@ -29,9 +30,15 @@ int main (int argc, char *argv[]){
 	//ucl_disable_dest(dest3);
 
 
-	ucl_log(&ucl, UCL_LL_INFO, "This is some info, this is message %d\n", 1);
+	err = ucl_log(&ucl, UCL_LL_INFO, "This is some info, this is message %d\n", 1);
+	if (err != UCL_OK){
+		printf("Error: %s\r\n", ucl_err_to_string(err));
+	}
 
-	ucl_log(&ucl, UCL_LL_INFO, "Second message, %s message %d\n", "this is", 2);
+	err = ucl_log(&ucl, UCL_LL_INFO, "Second message, %s message %d\n", "this is", 2);
+	if (err != UCL_OK){
+		printf("Error: %s\r\n", ucl_err_to_string(err));
+	}
 	return EXIT_SUCCESS;
 
 	ucl_free(&ucl);

@@ -15,6 +15,10 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <libgen.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "utilc-logging.h"
 
@@ -31,7 +35,7 @@ static const char * ucl_err_string[] = {
 	"Invalid destination type"
 };
 
-char * ucl_err_to_string(enum ucl_error_code_e err){
+const char * ucl_err_to_string(enum ucl_error_code_e err){
 	if(err < 0 || (err > MAX_ERR_NUM)){
 		return "Error";
 	}
@@ -88,7 +92,6 @@ static void tv_to_timestamp(char *m, struct timeval *tv){
 	strcat(m, "[");
 	strcat(m, timestamp);
 	strcat(m,"] ");
-	printf("testing: %s\n", m);
 }
 
 static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *message){
@@ -104,7 +107,6 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 	if(ucl->flags & UCL_FLAGS_LOG_LEVEL){
 		msg_log_level = ucl_log_level_to_string(message->log_level);
 		msg_log_level_size = strlen(msg_log_level);
-		printf("Log Level: %s\n", msg_log_level);
 	}
 
 	char msg_timestamp[MSG_TIMESTAMP_BYTES];
@@ -113,13 +115,11 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 	if(ucl->flags && UCL_FLAGS_TIMESTAMP){
 		tv_to_timestamp(msg_timestamp, &message->tv);
 		msg_timestamp_size = MSG_TIMESTAMP_BYTES;
-		printf("Timestamp: %s\n", msg_timestamp);
 	}
 
 	//Work out the size of c-string we need to print
 	char msg_full[msg_user_size + msg_timestamp_size + msg_log_level_size];
 	memset(msg_full, 0, sizeof(msg_full));
-	printf("Allocated %d\n", msg_user_size + msg_timestamp_size + msg_log_level_size + NULL_TERMINATOR);
 
 	if(ucl->flags && UCL_FLAGS_TIMESTAMP){
 		strcat(msg_full, msg_timestamp);
@@ -131,15 +131,20 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 
 	strcat(msg_full, ": ");
 	strcat(msg_full, msg_user);
-	//	printf(m);
-	printf("Type: %s\n", ucl_dest_type_to_string(dest->type));
+
+	char * filename;
 	switch(dest->type){
 		case UCL_DEST_FILE:
-			;
-			char * filename = dest->conf.file.filename;
-			printf("filename: %s\n", filename);
-			FILE *log_file = fopen(filename, "a");
+			filename = dest->conf.file.filename;
+
+			//Try to open the specified log file
+			FILE *log_file = fopen(filename, "ab+");
+			if(log_file == NULL){
+				return UCL_ERROR;
+			}
+
 			vfprintf(log_file, msg_full, message->args);
+
 			fclose(log_file);
 			break;
 		case UCL_DEST_STDOUT:
@@ -175,6 +180,7 @@ uint32_t ucl_log(ucl_h ucl, enum ucl_log_level_e log_level, const char *message,
 		va_end(args);
 		va_end(m.args);
 	}
+	return UCL_OK;
 }
 
 ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...){
@@ -186,10 +192,23 @@ ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...){
 		.flags = UCL_FLAGS_DEST_ENABLED
 	};
 
-	switch(dest_type){
-		case UCL_DEST_FILE:
+	if (dest_type == UCL_DEST_FILE){
+			//Make note of the filename for later use
 			new_dest.conf.file.filename = va_arg(args, char*);
-			break;
+
+			//Attempt to open file (will attempt to create if it doesn't exist (+))
+			FILE *f = fopen(new_dest.conf.file.filename, "a+");
+
+			if((f == NULL) && (errno == ENOENT)){
+				char * filepath = strdup(new_dest.conf.file.filename);
+
+				if(mkdir(dirname(filepath), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0){
+					return UCL_ERROR;
+				}
+			} else {
+				fclose(f);
+			}
+
 	}
 
 	struct ucl_dest_s *tmp_ptr = realloc(ucl->dests, (ucl->num_dests + 1) * sizeof(struct ucl_dest_s));
