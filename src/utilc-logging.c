@@ -25,10 +25,6 @@
 #define MSG_TIMESTAMP_BYTES 29
 #define NULL_TERMINATOR 1
 
-uint32_t uc_template_function(void){
-	return EXIT_SUCCESS;
-}
-
 static const char * ucl_err_string[] = {
 	"Error",
 	"Ok",
