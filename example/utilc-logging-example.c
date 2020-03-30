@@ -11,6 +11,7 @@
 #include <utilc-logging.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 int main (int argc, char *argv[]){
 	struct ucl_s ucl;
@@ -22,6 +23,13 @@ int main (int argc, char *argv[]){
 	*/
 	ucl_dest_h dest1 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
 	ucl_dest_h dest2 = ucl_add_dest(&ucl, UCL_DEST_FILE, "/home/cameron/logs/test.log");
+
+	/* For UCL_DEST_FILE destinations we can set a maximum nuber of bytes.
+	   After the file reaches this size, messages from the end of beginning
+		 of the file will be removed. */
+
+	// Limit the dest 2 file to 10
+	ucl_set_dest(dest2, UCL_DPROP_MAX_FILE_SIZE, 1024 * 10);
 	//ucl_dest_h dest3 = ucl_add_dest(&ucl, UCL_DEST_STDOUT);
 
 	/*	If destinations require modification after creation,

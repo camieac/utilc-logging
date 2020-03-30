@@ -4,7 +4,7 @@
 * @date 5 Jan 2017
 * @version 0.1.0
 * @copyright 2017 Cameron A. Craig
-* @brief Defines uc_timing_h handle and function prototypes.
+* @brief Logging
 * -- RULE_3_2_CD_do_not_use_special_characters_in_filename
 * -- RULE_8_1_A_provide_file_info_comment
 */
@@ -14,11 +14,16 @@
 #include <sys/time.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #define UCL_FLAGS_TIMESTAMP (1 << 0)
 #define UCL_FLAGS_LOG_LEVEL (1 << 1)
 
 #define UCL_FLAGS_DEST_ENABLED (1 << 2)
+#define UCL_FLAGS_DEST_FILELIMIT (1 << 3)
+
+#define MSG_TIMESTAMP_BYTES 29
+#define NULL_TERMINATOR 1
 
 enum ucl_error_code_e {
 	UCL_ERROR,
@@ -44,6 +49,11 @@ enum ucl_dest_type_e {
 	MAX_DEST_NUM
 };
 
+enum ucl_dest_prop_e {
+	UCL_DPROP_MAX_FILE_SIZE,
+	MAX_DPROP_NUM
+};
+
 typedef struct ucl_dest_s* ucl_dest_h;
 struct ucl_dest_s {
 	enum ucl_log_level_e log_level; //Log messages below this level wil be ignored.
@@ -54,6 +64,8 @@ struct ucl_dest_s {
 		} udp;
 		struct {
 			char *filename;
+			size_t max_size;
+			size_t cur_size;
 		} file;
 	} conf;
 
@@ -80,8 +92,10 @@ struct ucl_s {
 uint32_t ucl_init(ucl_h ucl);
 uint32_t ucl_log(ucl_h ucl, enum ucl_log_level_e log_level, const char *message, ...);
 ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...);
+uint32_t ucl_set_dest(ucl_dest_h dest, enum ucl_dest_prop_e dest_prop, ...);
 uint32_t ucl_disable_dest(ucl_dest_h dest);
 uint32_t ucl_free(ucl_h ucl);
+const char * ucl_err_to_string(enum ucl_error_code_e err);
 //uint32_t ucl_log_error(ucl_h ucl);
 
 #endif

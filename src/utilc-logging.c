@@ -1,10 +1,10 @@
 /**
-* @file utic-timing.c
+* @file utilc-logging.c
 * @author Cameron A. Craig
 * @date 28 Dec 2016
 * @version 0.1.0
 * @copyright 2016 Cameron A. Craig
-* @brief Measure time without thinking about the arithmetic.
+* @brief Logging
 * -- RULE_3_2_CD_do_not_use_special_characters_in_filename
 * -- RULE_8_1_A_provide_file_info_comment
 */
@@ -15,15 +15,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
-#include <libgen.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include "utilc-logging.h"
-
-#define MSG_TIMESTAMP_BYTES 29
-#define NULL_TERMINATOR 1
 
 static const char * ucl_err_string[] = {
 	"Error",
@@ -46,7 +39,7 @@ static const char * ucl_dest_type_string[] = {
 	"UCL_DEST_UDP"
 };
 
-char * ucl_dest_type_to_string(enum ucl_dest_type_e err){
+const char * ucl_dest_type_to_string(enum ucl_dest_type_e err){
 	if(err < 0 || (err > MAX_DEST_NUM)){
 		return "Error";
 	}
@@ -60,7 +53,7 @@ static const char * ucl_log_level_string[] = {
 	"ERROR"
 };
 
-char * ucl_log_level_to_string(enum ucl_log_level_e err){
+const char * ucl_log_level_to_string(enum ucl_log_level_e err){
 	if(err < 0 || (err > MAX_LOG_LEVEL_NUM)){
 		return "Error";
 	}
@@ -77,14 +70,15 @@ uint32_t ucl_init(ucl_h ucl){
 }
 
 static void tv_to_timestamp(char *m, struct timeval *tv){
+	// Buffer for timestamp string
 	char timestamp[64];
-	time_t nowtime;
-	struct tm *nowtm;
-	char tmbuf[64];
-	nowtime = tv->tv_sec;
-	nowtm = localtime(&nowtime);
-	strftime(tmbuf, sizeof(tmbuf), "%Y-%m-%d %H:%M:%S", nowtm);
-	snprintf(timestamp, sizeof(timestamp), "%s.%06d", tmbuf, tv->tv_usec);
+
+	// Store the current time (seconds precision)
+	time_t nowtime = time(NULL);
+
+	// Copy generated string to m
+	struct tm *nowtm = localtime(&nowtime);
+	strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", nowtm);
 	strcat(m, "[");
 	strcat(m, timestamp);
 	strcat(m,"] ");
@@ -128,19 +122,21 @@ static uint32_t dest_log(ucl_h ucl, ucl_dest_h dest, struct ucl_message_s *messa
 	strcat(msg_full, ": ");
 	strcat(msg_full, msg_user);
 
-	char * filename;
+  char * filename;
+  FILE *log_file;
 	switch(dest->type){
 		case UCL_DEST_FILE:
-			filename = dest->conf.file.filename;
-
-			//Try to open the specified log file
-			FILE *log_file = fopen(filename, "ab+");
-			if(log_file == NULL){
-				return UCL_ERROR;
+			// Make sure we don't exceed the file limit - if there is one
+			if(dest->flags & UCL_FLAGS_DEST_FILELIMIT) {
+				// Remove a line from the start of the file until the next message will fit
+				while((dest->conf.file.cur_size + strlen(msg_full)) > dest->conf.file.max_size) {
+					// remove_line_from_file() returns number of bytes removed
+					dest->conf.file.cur_size -= remove_line_from_file(filename);
+				}
 			}
-
+			filename = dest->conf.file.filename;
+			log_file = fopen(filename, "a");
 			vfprintf(log_file, msg_full, message->args);
-
 			fclose(log_file);
 			break;
 		case UCL_DEST_STDOUT:
@@ -176,38 +172,26 @@ uint32_t ucl_log(ucl_h ucl, enum ucl_log_level_e log_level, const char *message,
 		va_end(args);
 		va_end(m.args);
 	}
+
 	return UCL_OK;
 }
 
 ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...){
 	va_list args;
 	va_start(args, dest_type);
-	struct ucl_dest_s new_dest = {
-		.log_level = UCL_LL_DEBUG,
-		.type = dest_type,
-		.flags = UCL_FLAGS_DEST_ENABLED
-	};
+	struct ucl_dest_s new_dest;
+  memset(&new_dest, 0x00, sizeof(struct ucl_dest_s));
+  new_dest.log_level = UCL_LL_DEBUG;
+	new_dest.type = dest_type;
+	new_dest.flags = UCL_FLAGS_DEST_ENABLED;
 
-	if (dest_type == UCL_DEST_FILE){
-			//Make note of the filename for later use
+	switch(dest_type){
+		case UCL_DEST_FILE:
 			new_dest.conf.file.filename = va_arg(args, char*);
-
-			//Attempt to open file (will attempt to create if it doesn't exist (+))
-			FILE *f = fopen(new_dest.conf.file.filename, "a+");
-
-			if((f == NULL) && (errno == ENOENT)){
-				char * filepath = strdup(new_dest.conf.file.filename);
-
-				if(mkdir(dirname(filepath), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0){
-					return UCL_ERROR;
-				}
-			} else {
-				fclose(f);
-			}
-
+			break;
 	}
 
-	struct ucl_dest_s *tmp_ptr = realloc(ucl->dests, (ucl->num_dests + 1) * sizeof(struct ucl_dest_s));
+	struct ucl_dest_s *tmp_ptr = (struct ucl_dest_s *) realloc(ucl->dests, (ucl->num_dests + 1) * sizeof(struct ucl_dest_s));
 	if(tmp_ptr == NULL){
 		free(ucl->dests);
 		return NULL;
@@ -220,6 +204,23 @@ ucl_dest_h ucl_add_dest(ucl_h ucl, enum ucl_dest_type_e dest_type, ...){
 	va_end(args);
 
 	return &ucl->dests[ucl->num_dests - 1];
+}
+
+uint32_t ucl_set_dest(ucl_dest_h dest, enum ucl_dest_prop_e dest_prop, ...) {
+	va_list args;
+	va_start(args, dest_prop);
+
+	switch(dest_prop){
+		case UCL_DPROP_MAX_FILE_SIZE:
+			dest->conf.file.max_size = va_arg(args, size_t);
+
+			dest->flags |= UCL_FLAGS_DEST_FILELIMIT;
+			break;
+	}
+
+	va_end(args);
+
+	return UCL_OK;
 }
 
 uint32_t ucl_disable_dest(ucl_dest_h dest){
